@@ -481,8 +481,11 @@ export default function AdminDashboard() {
                   <tbody className="divide-y divide-gray-100">
                     {pendingList.map(a => (
                       <tr key={a.id} className="hover:bg-white transition-all">
-                        <td className="px-8 py-6 text-sm font-bold text-gray-700">
-                          {userProfile.email === PRIMARY_ADMIN_EMAIL ? a.email : '********@****.***'}
+                        <td className="px-8 py-6">
+                          <div className="font-black text-gray-900 text-sm italic">{a.display_name || '名称未設定'}</div>
+                          <div className="text-xs font-bold text-gray-400 mt-0.5 tracking-wider">
+                            {userProfile.email === PRIMARY_ADMIN_EMAIL ? a.email : '********@****.***'}
+                          </div>
                         </td>
                         <td className="px-8 py-6 text-right">
                           <div className="flex gap-3 justify-end">
