@@ -39,6 +39,36 @@ const defaultForm: FormData = {
   company_url: '', recruitment_url: '', publish_status: 'draft',
 }
 
+// --- Stable Sub-components (outside main component to prevent remounts) ---
+
+const InputField = ({ label, value, onChange, type = 'text', placeholder, required }: {
+  label: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; required?: boolean
+}) => (
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <input
+      type={type} value={value} onChange={onChange} placeholder={placeholder}
+      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]"
+    />
+  </div>
+)
+
+const TextAreaField = ({ label, value, onChange, rows = 3, placeholder }: {
+  label: string; value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; rows?: number; placeholder?: string
+}) => (
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-1.5">{label}</label>
+    <textarea
+      value={value} onChange={onChange} rows={rows} placeholder={placeholder}
+      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981] resize-vertical"
+    />
+  </div>
+)
+
+// --- Main Component ---
+
 export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
   const router = useRouter()
   const { isLoaded, user } = useUser()
@@ -68,9 +98,8 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
   const [error, setError] = useState('')
   const [displayIndustries, setDisplayIndustries] = useState<string[]>(INDUSTRIES)
   const [isNewIndustry, setIsNewIndustry] = useState(false)
-  const [newIndustryName, setNewIndustryName] = useState('')
 
-  const set = (key: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (key: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     if (key === 'industry' && e.target.value === '__NEW__') {
       setIsNewIndustry(true)
       setForm(prev => ({ ...prev, [key]: '' }))
@@ -83,7 +112,6 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
     const fetchIndustries = async () => {
       const { getRegisteredIndustries } = await import('@/app/actions/companies')
       const registered = await getRegisteredIndustries()
-      // DBの値のみを使用する（初期値があればそれも追加して重複排除）
       const initialInd = initialData?.industry ? [initialData.industry] : []
       const combined = Array.from(new Set([...initialInd, ...registered])).sort()
       setDisplayIndustries(combined)
@@ -158,32 +186,6 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
     router.refresh()
   }
 
-  const InputField = ({ label, name, type = 'text', placeholder, required }: {
-    label: string; name: keyof FormData; type?: string; placeholder?: string; required?: boolean
-  }) => (
-    <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <input
-        type={type} value={form[name]} onChange={set(name)} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]"
-      />
-    </div>
-  )
-
-  const TextAreaField = ({ label, name, rows = 3, placeholder }: {
-    label: string; name: keyof FormData; rows?: number; placeholder?: string
-  }) => (
-    <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-1.5">{label}</label>
-      <textarea
-        value={form[name]} onChange={set(name)} rows={rows} placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981] resize-vertical"
-      />
-    </div>
-  )
-
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-800 mb-8">
@@ -197,14 +199,14 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
       <div className="space-y-8">
         <section className="bg-white rounded-2xl shadow p-6 space-y-4">
           <h2 className="font-bold text-gray-800 border-b pb-2">📋 基本情報</h2>
-          <InputField label="企業名" name="name" required placeholder="例: かつナビ株式会社" />
+          <InputField label="企業名" value={form.name} onChange={handleChange('name')} required placeholder="例: かつナビ株式会社" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">業界 <span className="text-red-500">*</span></label>
               {!isNewIndustry ? (
                 <select
                   value={form.industry}
-                  onChange={set('industry')}
+                  onChange={handleChange('industry')}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981] bg-white transition-all"
                 >
                   <option value="">業界を選択...</option>
@@ -216,7 +218,7 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
                   <input
                     type="text"
                     value={form.industry}
-                    onChange={set('industry')}
+                    onChange={handleChange('industry')}
                     placeholder="新しい業界名を入力"
                     autoFocus
                     className="flex-1 border border-[#10B981] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]"
@@ -257,7 +259,7 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">本社所在地</label>
               <select
                 value={form.headquarters}
-                onChange={set('headquarters')}
+                onChange={handleChange('headquarters')}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981] bg-white transition-all shadow-sm"
               >
                 <option value="">都道府県を選択...</option>
@@ -265,11 +267,11 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
               </select>
             </div>
             <div className="flex flex-col gap-4">
-              <InputField label="企業URL" name="company_url" placeholder="https://example.com" />
-              <InputField label="採用URL" name="recruitment_url" placeholder="https://example.com/recruit" />
+              <InputField label="企業URL" value={form.company_url} onChange={handleChange('company_url')} placeholder="https://example.com" />
+              <InputField label="採用URL" value={form.recruitment_url} onChange={handleChange('recruitment_url')} placeholder="https://example.com/recruit" />
             </div>
           </div>
-          <TextAreaField label="採用フロー" name="hiring_flow" rows={3} placeholder="書類選考 → 面接（2回） → 内定" />
+          <TextAreaField label="採用フロー" value={form.hiring_flow} onChange={handleChange('hiring_flow')} rows={3} placeholder="書類選考 → 面接（2回） → 内定" />
         </section>
 
         {/* Logo */}
@@ -298,26 +300,26 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
         {/* Description */}
         <section className="bg-white rounded-2xl shadow p-6 space-y-4">
           <h2 className="font-bold text-gray-800 border-b pb-2">💼 企業説明</h2>
-          <TextAreaField label="事業内容" name="description" rows={3} placeholder="主な事業内容を入力..." />
-          <TextAreaField label="企業紹介文" name="introduction" rows={4} placeholder="企業の魅力や文化について..." />
+          <TextAreaField label="事業内容" value={form.description} onChange={handleChange('description')} rows={3} placeholder="主な事業内容を入力..." />
+          <TextAreaField label="企業紹介文" value={form.introduction} onChange={handleChange('introduction')} rows={4} placeholder="企業の魅力や文化について..." />
         </section>
 
         {/* Stats */}
         <section className="bg-white rounded-2xl shadow p-6 space-y-4">
           <h2 className="font-bold text-gray-800 border-b pb-2">📊 勤務データ</h2>
           <div className="grid grid-cols-2 gap-4">
-            <InputField label="平均年収（万円）" name="avg_salary" type="number" placeholder="例: 450" />
-            <InputField label="平均残業時間（h/月）" name="avg_overtime" type="number" placeholder="例: 20" />
+            <InputField label="平均年収（万円）" value={form.avg_salary} onChange={handleChange('avg_salary')} type="number" placeholder="例: 450" />
+            <InputField label="平均残業時間（h/月）" value={form.avg_overtime} onChange={handleChange('avg_overtime')} type="number" placeholder="例: 20" />
           </div>
-          <TextAreaField label="福利厚生" name="benefits" rows={3} placeholder="住宅手当, 健康診断, 育児休暇..." />
+          <TextAreaField label="福利厚生" value={form.benefits} onChange={handleChange('benefits')} rows={3} placeholder="住宅手当, 健康診断, 育児休暇..." />
         </section>
 
         {/* Characteristics */}
         <section className="bg-white rounded-2xl shadow p-6 space-y-4">
           <h2 className="font-bold text-gray-800 border-b pb-2">⭐ 企業の特徴</h2>
-          <TextAreaField label="強み" name="strengths" placeholder="この企業の強みは..." />
-          <TextAreaField label="弱み・課題" name="weaknesses" placeholder="課題として..." />
-          <TextAreaField label="こんな人に向いている" name="ideal_candidate" placeholder="向上心があり..." />
+          <TextAreaField label="強み" value={form.strengths} onChange={handleChange('strengths')} placeholder="この企業の強みは..." />
+          <TextAreaField label="弱み・課題" value={form.weaknesses} onChange={handleChange('weaknesses')} placeholder="課題として..." />
+          <TextAreaField label="こんな人に向いている" value={form.ideal_candidate} onChange={handleChange('ideal_candidate')} placeholder="向上心があり..." />
         </section>
 
         {/* Submit */}
