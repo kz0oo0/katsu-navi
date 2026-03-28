@@ -130,12 +130,9 @@ export default function AdminDashboard() {
             上位管理者による承認が完了するまで、ダッシュボードはご利用いただけません。
           </p>
           <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-left mb-8">
-            <p className="text-[11px] font-black text-emerald-800 uppercase tracking-widest mb-2">ステータス</p>
-            <p className="text-sm font-bold text-emerald-900">
-              メール認証: <span className="text-emerald-600">完了 ✅</span>
-            </p>
+            <p className="text-[11px] font-black text-emerald-800 uppercase tracking-widest mb-2">現在のステータス</p>
             <p className="text-sm font-bold text-emerald-900 mt-1">
-              管理者承認: <span className="text-amber-600">確認中...</span>
+              管理者承認: <span className="text-amber-600 font-black">承認待ち...</span>
             </p>
           </div>
           <button onClick={handleLogout} className="text-gray-400 font-bold hover:text-gray-600 transition underline underline-offset-4 text-sm">

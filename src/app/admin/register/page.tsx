@@ -19,8 +19,6 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [pendingVerification, setPendingVerification] = useState(false)
-  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -43,7 +41,7 @@ export default function RegisterPage() {
     setError('')
 
     try {
-      await signUp.create({
+      const response = await signUp.create({
         emailAddress: email,
         password,
         unsafeMetadata: {
@@ -52,69 +50,18 @@ export default function RegisterPage() {
         }
       })
 
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
-      setPendingVerification(true)
+      // メール認証なしで即座にログイン (Clerk側で「Email verification」を無効化する必要があります)
+      if (response.createdSessionId) {
+        await setActive({ session: response.createdSessionId })
+        router.push('/admin/dashboard')
+      } else {
+        setError('登録は完了しましたが、自動ログインに失敗しました。ログイン画面からお試しください。')
+      }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || '登録に失敗しました。')
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleVerification = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!isLoaded) return
-
-    setLoading(true)
-    try {
-      const completeSignUp = await signUp.attemptEmailAddressVerification({
-        code,
-      })
-
-      if (completeSignUp.status === 'complete') {
-        await setActive({ session: completeSignUp.createdSessionId })
-        router.push('/admin/dashboard')
-      } else {
-        setError('認証に失敗しました。コードを確認してください。')
-      }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || '認証に失敗しました。')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (pendingVerification) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#065F46] to-[#10B981] flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white p-10 rounded-[32px] shadow-2xl border border-gray-100">
-          <h2 className="text-2xl font-extrabold text-[#0F172A] mb-4 text-center">認証コードを入力</h2>
-          <p className="text-gray-500 text-sm text-center mb-8">
-            入力したメールアドレスに認証コードを送信しました。<br />
-            確認して入力してください。
-          </p>
-          
-          <form onSubmit={handleVerification} className="space-y-6">
-            <div>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="認証コード"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center tracking-[0.5em] text-xl font-bold focus:outline-none focus:ring-2 focus:ring-[#10B981]"
-                required
-              />
-            </div>
-            
-            {error && <p className="text-red-500 text-xs font-bold bg-red-50 p-3 rounded-lg">{error}</p>}
-            
-            <button type="submit" disabled={loading} className="w-full bg-[#10B981] text-white py-4 rounded-xl font-bold text-sm hover:bg-[#059669] transition shadow-lg">
-              {loading ? '処理中...' : '認証して登録完了'}
-            </button>
-          </form>
-        </div>
-      </div>
-    )
   }
 
   return (
