@@ -1,85 +1,141 @@
 'use server'
 
-import { clerkClient, currentUser } from '@clerk/nextjs/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 const PRIMARY_ADMIN_EMAIL = 'kazuhiro.m1224@gmail.com'
 
 export async function approveAdminAction(userId: string) {
-  const user = await currentUser()
-  if (!user || user.publicMetadata.role !== 'super_admin') {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Get current user's profile to check role
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single()
+
+  if (!profile || profile.role !== 'super_admin') {
     throw new Error('権限がありません')
   }
 
-  await clerkClient.users.updateUserMetadata(userId, {
-    unsafeMetadata: {
-      is_approved: true
-    }
-  })
+  const { error } = await supabase
+    .from('profiles')
+    .update({ is_approved: true })
+    .eq('id', userId)
+
+  if (error) throw error
 
   revalidatePath('/admin/dashboard')
   return { success: true }
 }
 
 export async function deleteAdminAction(userId: string) {
-  const user = await currentUser()
-  if (!user || user.publicMetadata.role !== 'super_admin') {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single()
+
+  if (!profile || profile.role !== 'super_admin') {
     throw new Error('権限がありません')
   }
 
-  const targetUser = await clerkClient.users.getUser(userId)
-  const targetEmail = targetUser.emailAddresses[0]?.emailAddress
+  // Get target user's email to protect primary admin
+  const { data: targetProfile } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .single()
 
-  if (targetEmail === PRIMARY_ADMIN_EMAIL) {
+  if (targetProfile?.email === PRIMARY_ADMIN_EMAIL) {
     throw new Error('システム主管理者を削除することはできません')
   }
 
-  await clerkClient.users.deleteUser(userId)
+  // Use Admin Client to delete from Auth as well
+  const adminClient = await createAdminClient()
+  
+  // 1. Delete from Auth
+  const { error: authError } = await adminClient.auth.admin.deleteUser(userId)
+  if (authError) console.error('Auth deletion error:', authError)
+
+  // 2. Delete from Profiles (Cascades if configured, but explicit is safer)
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', userId)
+
+  if (profileError) throw profileError
 
   revalidatePath('/admin/dashboard')
   return { success: true }
 }
 
 export async function updateAdminRoleAction(userId: string, role: 'admin' | 'super_admin') {
-  const user = await currentUser()
-  if (!user || user.publicMetadata.role !== 'super_admin') {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single()
+
+  if (!profile || profile.role !== 'super_admin') {
     throw new Error('権限がありません')
   }
 
-  const targetUser = await clerkClient.users.getUser(userId)
-  const targetEmail = targetUser.emailAddresses[0]?.emailAddress
+  const { data: targetProfile } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .single()
 
-  if (targetEmail === PRIMARY_ADMIN_EMAIL) {
+  if (targetProfile?.email === PRIMARY_ADMIN_EMAIL) {
     throw new Error('システム主管理者の権限を変更することはできません')
   }
 
-  await clerkClient.users.updateUserMetadata(userId, {
-    publicMetadata: {
-      role
-    }
-  })
+  const { error } = await supabase
+    .from('profiles')
+    .update({ role })
+    .eq('id', userId)
+
+  if (error) throw error
 
   revalidatePath('/admin/dashboard')
   return { success: true }
 }
 
 export async function getAdminProfilesWithVerificationAction() {
-  const user = await currentUser()
-  if (!user || user.publicMetadata.role !== 'super_admin') {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single()
+
+  if (!profile || profile.role !== 'super_admin') {
     return []
   }
 
-  const users = await clerkClient.users.getUserList({
-    limit: 100,
-  })
+  const { data: profiles, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false })
 
-  return users.data.map(u => ({
-    id: u.id,
-    display_name: (u.unsafeMetadata.display_name as string) || '名称未設定',
-    email: u.emailAddresses[0]?.emailAddress || '',
-    role: (u.publicMetadata.role as string) || 'admin',
-    is_approved: !!u.unsafeMetadata.is_approved,
-    email_verified: u.emailAddresses[0]?.verification?.status === 'verified',
-    created_at: new Date(u.createdAt).toISOString()
+  if (error) {
+    console.error('Error fetching profiles:', error)
+    return []
+  }
+
+  return profiles.map(p => ({
+    ...p,
+    email_verified: true // Supabase側でConfirm EmailをOFFにすることを前提
   }))
 }

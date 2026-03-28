@@ -1,19 +1,77 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
-const isPublicRoute = createRouteMatcher(["/admin/login(.*)", "/admin/register(.*)"]);
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
 
-export default clerkMiddleware((auth, request) => {
-  if (isAdminRoute(request) && !isPublicRoute(request)) {
-    auth().protect();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: CookieOptions) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Protect admin routes
+  if (request.nextUrl.pathname.startsWith('/admin')) {
+    const isPublicRoute = 
+      request.nextUrl.pathname === '/admin/login' || 
+      request.nextUrl.pathname === '/admin/register'
+
+    if (!user && !isPublicRoute) {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
   }
-});
+
+  return response
+}
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-};
+}

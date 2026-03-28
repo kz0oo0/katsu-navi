@@ -3,18 +3,18 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useUser, useClerk } from '@clerk/nextjs'
 import { createClient } from '@/lib/supabase/client'
 import { Company, Profile } from '@/lib/types'
 import { approveAdminAction, deleteAdminAction, updateAdminRoleAction, getAdminProfilesWithVerificationAction } from '@/app/admin/actions'
 import { getCompanyAnalytics } from '@/app/actions/analytics'
+import { User } from '@supabase/supabase-js'
 
 const PRIMARY_ADMIN_EMAIL = 'kazuhiro.m1224@gmail.com'
 
 export default function AdminDashboard() {
   const router = useRouter()
-  const { isLoaded, user } = useUser()
-  const { signOut } = useClerk()
+  const [user, setUser] = useState<User | null>(null)
+  const [userProfile, setUserProfile] = useState<Profile | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [allProfiles, setAllProfiles] = useState<Profile[]>([])
   const [analytics, setAnalytics] = useState<any[]>([])
@@ -22,12 +22,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<'companies' | 'admins' | 'analytics'>('companies')
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('')
 
-  const fetchData = useCallback(async () => {
-    if (!isLoaded || !user) return
-
-    const isApproved = !!user.unsafeMetadata.is_approved
-    const role = (user.publicMetadata.role as string) || 'admin'
-
+  const fetchData = useCallback(async (currentUser: User, currentProfile: Profile) => {
     const supabase = createClient()
 
     const { data: co } = await supabase
@@ -35,7 +30,7 @@ export default function AdminDashboard() {
     setCompanies((co as Company[]) || [])
 
     try {
-      if (role === 'super_admin') {
+      if (currentProfile.role === 'super_admin') {
         const [profiles, analyticsData] = await Promise.all([
           getAdminProfilesWithVerificationAction(),
           getCompanyAnalytics()
@@ -43,7 +38,7 @@ export default function AdminDashboard() {
         setAllProfiles(profiles as Profile[])
         setAnalytics(analyticsData)
       } else {
-        const analyticsData = await getCompanyAnalytics(user.id)
+        const analyticsData = await getCompanyAnalytics(currentUser.id)
         setAnalytics(analyticsData)
       }
     } catch (err) {
@@ -51,20 +46,39 @@ export default function AdminDashboard() {
     }
     
     setLoading(false)
-  }, [isLoaded, user])
+  }, [])
 
-  useEffect(() => { 
-    if (isLoaded) {
+  useEffect(() => {
+    const supabase = createClient()
+    
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         router.push('/admin/login')
-      } else {
-        fetchData()
+        return
       }
+      setUser(user)
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      
+      if (!profile) {
+        setLoading(false)
+        return
+      }
+      setUserProfile(profile as Profile)
+      fetchData(user, profile as Profile)
     }
-  }, [isLoaded, user, fetchData, router])
+
+    init()
+  }, [router, fetchData])
 
   const handleLogout = async () => {
-    await signOut()
+    const supabase = createClient()
+    await supabase.auth.signOut()
     router.push('/admin/login')
   }
 
@@ -113,13 +127,10 @@ export default function AdminDashboard() {
     }
   }
 
-  const role = user ? (user.publicMetadata.role as string) || 'admin' : 'admin'
-  const isApproved = user ? !!user.unsafeMetadata.is_approved : false
+  if (loading) return <div className="p-8 text-center text-gray-400 font-bold">読み込み中...</div>
 
-  if (loading || !isLoaded) return <div className="p-8 text-center text-gray-400">読み込み中...</div>
-
-  // Check approval
-  if (!isApproved) {
+  // Access check
+  if (!userProfile?.is_approved) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
@@ -143,7 +154,8 @@ export default function AdminDashboard() {
     )
   }
 
-  const pendingList = allProfiles.filter(p => !p.is_approved && (p as any).email_verified)
+  const role = userProfile.role || 'admin'
+  const pendingList = allProfiles.filter(p => !p.is_approved)
   const activeList = allProfiles.filter(p => p.is_approved)
 
   return (
@@ -155,8 +167,8 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-2 mt-2">
             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
             <p className="text-sm font-bold text-gray-500">
-              {user?.primaryEmailAddress?.emailAddress} <span className="mx-2 text-gray-300">|</span> 
-              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg">
+              {userProfile.email} <span className="mx-2 text-gray-300">|</span> 
+              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg uppercase tracking-tight">
                 {role === 'super_admin' ? '上位管理者' : '一般管理者'}
               </span>
             </p>
@@ -244,7 +256,7 @@ export default function AdminDashboard() {
                 {companies.map(c => (
                   <tr key={c.id} className="hover:bg-gray-50/30 transition-all group">
                     <td className="px-8 py-6">
-                      <div className="font-black text-gray-900 group-hover:text-emerald-700 transition-colors uppercase italic">{c.name}</div>
+                      <div className="font-black text-gray-900 group-hover:text-emerald-700 transition-colors uppercase italic text-sm">{c.name}</div>
                       <div className="text-[10px] text-gray-300 mt-0.5 tracking-wider truncate max-w-xs">{c.location}</div>
                     </td>
                     <td className="px-8 py-6 hidden md:table-cell">
@@ -467,7 +479,7 @@ export default function AdminDashboard() {
                     {pendingList.map(a => (
                       <tr key={a.id} className="hover:bg-white transition-all">
                         <td className="px-8 py-6 text-sm font-bold text-gray-700">
-                          {user?.primaryEmailAddress?.emailAddress === PRIMARY_ADMIN_EMAIL ? a.email : '********@****.***'}
+                          {userProfile.email === PRIMARY_ADMIN_EMAIL ? a.email : '********@****.***'}
                         </td>
                         <td className="px-8 py-6 text-right">
                           <div className="flex gap-3 justify-end">
@@ -475,7 +487,7 @@ export default function AdminDashboard() {
                               className="bg-emerald-700 text-white px-6 py-2 rounded-xl text-xs font-black hover:bg-emerald-600 transition-all shadow-md shadow-emerald-900/10">
                               承認
                             </button>
-                            <button onClick={() => deleteProfile(a.id, a.email || '')}
+                            <button onClick={() => deleteProfile(a.id, a.display_name || '')}
                               className="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-xs font-black hover:bg-red-600 hover:text-white transition-all">
                               却下
                             </button>
@@ -510,18 +522,18 @@ export default function AdminDashboard() {
                     {activeList.map(a => (
                       <tr key={a.id} className="hover:bg-gray-50/30 transition-all group">
                         <td className="px-8 py-6">
-                          <div className="font-black text-gray-900 text-sm group-hover:text-emerald-700 transition-colors">{a.display_name || '名称未設定'}</div>
-                          {a.id === user?.id && <span className="mt-2 inline-flex items-center gap-1 text-[8px] bg-emerald-700 text-white px-2 py-0.5 rounded uppercase font-black tracking-widest">あなた</span>}
+                          <div className="font-black text-gray-900 text-sm group-hover:text-emerald-700 transition-colors italic">{a.display_name || '名称未設定'}</div>
+                          {a.id === userProfile.id && <span className="mt-2 inline-flex items-center gap-1 text-[8px] bg-emerald-700 text-white px-2 py-0.5 rounded uppercase font-black tracking-widest">あなた</span>}
                         </td>
                         <td className="px-8 py-6">
                           <div className="text-xs font-bold text-gray-500 tracking-wider">
-                            {user?.primaryEmailAddress?.emailAddress === PRIMARY_ADMIN_EMAIL || a.id === user?.id ? a.email : '********@****.***'}
+                            {userProfile.email === PRIMARY_ADMIN_EMAIL || a.id === userProfile.id ? a.email : '********@****.***'}
                           </div>
                         </td>
                         <td className="px-8 py-6 text-center">
                           <div className="inline-block relative">
                             <select
-                              disabled={a.id === user?.id || a.email === PRIMARY_ADMIN_EMAIL}
+                              disabled={a.id === userProfile.id || a.email === PRIMARY_ADMIN_EMAIL}
                               value={a.role}
                               onChange={(e) => updateRole(a.id, e.target.value as 'admin' | 'super_admin')}
                               className="appearance-none bg-gray-100 border-none rounded-xl text-[10px] font-black text-emerald-800 px-6 py-2 focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed text-center uppercase tracking-widest hover:bg-emerald-50 transition-all">
@@ -531,7 +543,7 @@ export default function AdminDashboard() {
                           </div>
                         </td>
                         <td className="px-8 py-6 text-right">
-                          {(a.id !== user?.id && a.email !== PRIMARY_ADMIN_EMAIL) && (
+                          {(a.id !== userProfile.id && a.email !== PRIMARY_ADMIN_EMAIL) && (
                             <button onClick={() => deleteProfile(a.id, a.display_name || '名称未設定')}
                               className="text-red-300 hover:text-red-600 transition-colors uppercase text-[10px] font-black tracking-widest">
                               削除

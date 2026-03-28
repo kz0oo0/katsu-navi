@@ -1,14 +1,39 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { usePathname } from 'next/navigation'
-import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
+import { useState, useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { User } from '@supabase/supabase-js'
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
   const pathname = usePathname()
+  const router = useRouter()
   const isAuthPage = pathname === '/admin/login' || pathname === '/admin/register'
+
+  useEffect(() => {
+    const supabase = createClient()
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+    }
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/')
+    setMenuOpen(false)
+  }
 
   return (
     <header className="bg-white text-gray-800 shadow-sm border-b border-gray-100 sticky top-0 z-50">
@@ -23,21 +48,24 @@ export default function Header() {
             <Link href="/companies" className="nav-link">企業を探す</Link>
             <Link href="/companies/compare" className="nav-link">企業比較</Link>
             
-            <SignedOut>
+            {!user ? (
               <Link
                 href="/admin/login"
                 className="btn-secondary !py-2 !px-5"
               >
                 管理者ログイン
               </Link>
-            </SignedOut>
-            
-            <SignedIn>
+            ) : (
               <div className="flex items-center gap-4">
                 <Link href="/admin/dashboard" className="text-sm font-bold text-gray-600 hover:text-[#10B981]">管理画面</Link>
-                <UserButton afterSignOutUrl="/" />
+                <button 
+                  onClick={handleLogout}
+                  className="text-sm font-bold text-gray-400 hover:text-red-500 transition"
+                >
+                  ログアウト
+                </button>
               </div>
-            </SignedIn>
+            )}
           </nav>
         )}
 
@@ -56,21 +84,24 @@ export default function Header() {
       </div>
 
       {/* Mobile Menu */}
-      {menuOpen && (
+      {menuOpen && !isAuthPage && (
         <div className="md:hidden bg-white border-t border-gray-100 px-4 py-6 flex flex-col gap-4 text-base font-bold">
           <Link href="/companies" onClick={() => setMenuOpen(false)} className="nav-link !px-0">企業を探す</Link>
           <Link href="/companies/compare" onClick={() => setMenuOpen(false)} className="nav-link !px-0">企業比較</Link>
           
-          <SignedOut>
+          {!user ? (
             <Link href="/admin/login" onClick={() => setMenuOpen(false)} className="text-[#047857] font-bold">管理者ログイン</Link>
-          </SignedOut>
-          
-          <SignedIn>
-            <Link href="/admin/dashboard" onClick={() => setMenuOpen(false)} className="nav-link !px-0">管理画面</Link>
-            <div className="pt-2">
-              <UserButton afterSignOutUrl="/" />
-            </div>
-          </SignedIn>
+          ) : (
+            <>
+              <Link href="/admin/dashboard" onClick={() => setMenuOpen(false)} className="nav-link !px-0">管理画面</Link>
+              <button 
+                onClick={handleLogout}
+                className="text-left text-red-500 font-bold"
+              >
+                ログアウト
+              </button>
+            </>
+          )}
         </div>
       )}
     </header>

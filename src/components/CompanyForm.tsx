@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useUser } from '@clerk/nextjs'
 import { createClient } from '@/lib/supabase/client'
+import { User } from '@supabase/supabase-js'
 import { INDUSTRIES, PREFECTURES, PublishStatus } from '@/lib/types'
 import { Company } from '@/lib/types'
 
@@ -71,7 +71,8 @@ const TextAreaField = ({ label, value, onChange, rows = 3, placeholder }: {
 
 export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
   const router = useRouter()
-  const { isLoaded, user } = useUser()
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
   const [form, setForm] = useState<FormData>(
     initialData ? {
       name: initialData.name,
@@ -107,6 +108,16 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
       setForm(prev => ({ ...prev, [key]: e.target.value }))
     }
   }
+
+  useEffect(() => {
+    const supabase = createClient()
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      setIsLoaded(true)
+    }
+    getUser()
+  }, [])
 
   useEffect(() => {
     const fetchIndustries = async () => {

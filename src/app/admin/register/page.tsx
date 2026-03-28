@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useSignUp } from '@clerk/nextjs'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -15,7 +15,6 @@ const ALLOWED_DOMAINS = [
 ]
 
 export default function RegisterPage() {
-  const { isLoaded, signUp, setActive } = useSignUp()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -30,8 +29,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!isLoaded) return
-
+    
     if (!validateDomain(email)) {
       setError('許可されていないメールドメインです。主要なプロバイダ（Gmail/キャリアメール等）をご使用ください。')
       return
@@ -40,26 +38,46 @@ export default function RegisterPage() {
     setLoading(true)
     setError('')
 
-    try {
-      const response = await signUp.create({
-        emailAddress: email,
-        password,
-        unsafeMetadata: {
+    const supabase = createClient()
+    
+    // 1. Auth SignUp
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
           display_name: displayName,
-          is_approved: false // 初期状態は未承認
         }
-      })
-
-      // メール認証なしで即座にログイン (Clerk側で「Email verification」を無効化する必要があります)
-      if (response.createdSessionId) {
-        await setActive({ session: response.createdSessionId })
-        router.push('/admin/dashboard')
-      } else {
-        setError('登録は完了しましたが、自動ログインに失敗しました。ログイン画面からお試しください。')
       }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || '登録に失敗しました。')
-    } finally {
+    })
+
+    if (authError) {
+      setError(authError.message === 'User already registered' ? '既に登録されているメールアドレスです。' : authError.message)
+      setLoading(false)
+      return
+    }
+
+    if (authData.user) {
+      // 2. Insert into profiles (マニュアル同期)
+      // Note: 本来はDB Triggerで行うべきですが、動作確実性のためにフロントエンドからも試行
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          email: email,
+          display_name: displayName,
+          role: 'admin',
+          is_approved: false
+        })
+
+      if (profileError && profileError.code !== '23505') { // 23505 = unique_violation (すでにTrigger等で作成済み)
+        console.error('Profile sync error:', profileError)
+      }
+
+      // 3. ログイン画面またはダッシュボード（承認待ち）へ
+      router.push('/admin/dashboard')
+    } else {
+      setError('登録に失敗しました。')
       setLoading(false)
     }
   }
