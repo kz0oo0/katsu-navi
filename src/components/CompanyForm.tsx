@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useUser } from '@clerk/nextjs'
 import { createClient } from '@/lib/supabase/client'
 import { INDUSTRIES, PREFECTURES, PublishStatus } from '@/lib/types'
 import { Company } from '@/lib/types'
@@ -40,6 +41,7 @@ const defaultForm: FormData = {
 
 export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
   const router = useRouter()
+  const { isLoaded, user } = useUser()
   const [form, setForm] = useState<FormData>(
     initialData ? {
       name: initialData.name,
@@ -97,15 +99,17 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
   }
 
   const handleSubmit = async (status: PublishStatus) => {
-    if (!form.name || !form.industry || !form.location) {
-      setError('企業名・業界・本社所在地は必須です')
+    if (!form.name || !form.industry) {
+      setError('企業名・業界は必須です')
+      return
+    }
+    if (!isLoaded || !user) {
+      setError('ログイン情報が確認できません')
       return
     }
     setLoading(true)
     setError('')
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('ログインが必要です'); setLoading(false); return }
 
     let logo_url = initialData?.logo_url || null
     if (logoFile) {
@@ -227,7 +231,7 @@ export default function CompanyForm({ initialData, mode }: CompanyFormProps) {
               )}
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">勤務地（複数選択可） <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">勤務地（複数選択可）</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border border-gray-100 p-4 rounded-xl max-h-48 overflow-y-auto bg-gray-50/30">
                 {PREFECTURES.map(pref => (
                   <label key={pref} className="flex items-center gap-2 cursor-pointer group">
