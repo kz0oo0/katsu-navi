@@ -23,7 +23,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider localization={jaJP as any}>
+    <ClerkProvider localization={{
+      ...jaJP,
+      signUp: {
+        ...jaJP.signUp,
+        emailCode: {
+          ...jaJP.signUp?.emailCode,
+          subtitle: "" // 認証メール送信のメッセージを非表示化
+        }
+      },
+      signIn: {
+        ...jaJP.signIn,
+        emailCode: {
+          ...jaJP.signIn?.emailCode,
+          subtitle: "" // 認証メール送信のメッセージを非表示化
+        }
+      }
+    } as any}>
       <html lang="ja">
         <body className={`${notoSansJP.variable} font-sans antialiased bg-[#F8FAFC] text-[#0F172A]`}>
           <Header />
