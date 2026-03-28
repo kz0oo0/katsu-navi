@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Company, Profile } from '@/lib/types'
-import { approveAdminAction, deleteAdminAction, updateAdminRoleAction, getAdminProfilesWithVerificationAction, ensureCompanyLogosBucketAction } from '@/app/admin/actions'
+import { approveAdminAction, deleteAdminAction, updateAdminRoleAction, getAdminProfilesWithVerificationAction, ensureCompanyLogosBucketAction, bulkDeleteAdminsAction } from '@/app/admin/actions'
 import { getCompanyAnalytics } from '@/app/actions/analytics'
 import { User } from '@supabase/supabase-js'
 
@@ -15,6 +15,7 @@ export default function AdminDashboard() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [companies, setCompanies] = useState<Company[]>([])
   const [allProfiles, setAllProfiles] = useState<Profile[]>([])
   const [analytics, setAnalytics] = useState<any[]>([])
@@ -112,11 +113,45 @@ export default function AdminDashboard() {
     if (id === user?.id) { alert('自分自身を削除することはできません。'); return }
     if (!confirm(`管理者「${displayName}」を完全に削除してもよろしいですか？\n(認証アカウントを含め全て削除されます)`)) return
     
+    const original = allProfiles
+    setAllProfiles(prev => prev.filter(p => p.id !== id))
     try {
       await deleteAdminAction(id)
-      setAllProfiles(prev => prev.filter(p => p.id !== id))
     } catch (err: any) {
+      setAllProfiles(original)
       alert('削除に失敗しました: ' + err.message)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`${selectedIds.size}名のユーザーを一括却下（削除）してもよろしいですか？`)) return
+
+    const idsToDelete = Array.from(selectedIds)
+    const original = allProfiles
+    setAllProfiles(prev => prev.filter(p => !selectedIds.has(p.id)))
+    setSelectedIds(new Set())
+    
+    try {
+      await bulkDeleteAdminsAction(idsToDelete)
+    } catch (err: any) {
+      setAllProfiles(original)
+      alert('一括却下に失敗しました: ' + err.message)
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedIds(next)
+  }
+
+  const toggleSelectAll = (pendingIds: string[]) => {
+    if (selectedIds.size === pendingIds.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(pendingIds))
     }
   }
   
@@ -472,15 +507,44 @@ export default function AdminDashboard() {
         {tab === 'admins' && role === 'super_admin' && (
           <div className="p-8 space-y-12">
             <div>
-              <div className="flex items-center gap-3 mb-6 px-2">
-                <span className="w-1 h-6 bg-red-500 rounded-full"></span>
-                <h3 className="text-lg font-black text-gray-900 tracking-tight italic">承認待ちのユーザー</h3>
+              <div className="flex items-center justify-between mb-6 px-2">
+                <div className="flex items-center gap-3">
+                  <span className="w-1 h-6 bg-red-500 rounded-full"></span>
+                  <h3 className="text-lg font-black text-gray-900 tracking-tight italic">承認待ちのユーザー</h3>
+                </div>
+                {selectedIds.size > 0 && (
+                  <button onClick={handleBulkDelete} className="bg-red-600 text-white px-6 py-2 rounded-xl text-xs font-black hover:bg-red-700 transition-all shadow-lg shadow-red-900/20">
+                    選択した{selectedIds.size}名を一括却下
+                  </button>
+                )}
               </div>
               <div className="bg-gray-50/50 rounded-[24px] border border-gray-100 overflow-hidden">
-                <table className="w-full">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-white/50 border-b border-gray-100">
+                      <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                        <input 
+                          type="checkbox" 
+                          checked={pendingList.length > 0 && selectedIds.size === pendingList.length}
+                          onChange={() => toggleSelectAll(pendingList.map(a => a.id))}
+                          className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                      </th>
+                      <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">管理者情報</th>
+                      <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">操作</th>
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-gray-100">
                     {pendingList.map(a => (
-                      <tr key={a.id} className="hover:bg-white transition-all">
+                      <tr key={a.id} className={`transition-all ${selectedIds.has(a.id) ? 'bg-red-50/30' : 'hover:bg-white'}`}>
+                        <td className="px-8 py-6 w-10">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedIds.has(a.id)}
+                            onChange={() => toggleSelect(a.id)}
+                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                          />
+                        </td>
                         <td className="px-8 py-6">
                           <div className="font-black text-gray-900 text-sm italic">{a.display_name || '名称未設定'}</div>
                           <div className="text-xs font-bold text-gray-400 mt-0.5 tracking-wider">

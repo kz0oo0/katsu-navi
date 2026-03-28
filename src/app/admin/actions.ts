@@ -75,6 +75,37 @@ export async function deleteAdminAction(userId: string) {
   return { success: true }
 }
 
+export async function bulkDeleteAdminsAction(userIds: string[]) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single()
+
+  if (!profile || profile.role !== 'super_admin') {
+    throw new Error('権限がありません')
+  }
+
+  const adminClient = await createAdminClient()
+  
+  // Auth削除
+  await Promise.all(userIds.map(id => adminClient.auth.admin.deleteUser(id)))
+  
+  // Profile削除
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .delete()
+    .in('id', userIds)
+
+  if (profileError) throw profileError
+
+  revalidatePath('/admin/dashboard')
+  return { success: true }
+}
+
 export async function updateAdminRoleAction(userId: string, role: 'admin' | 'super_admin') {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
