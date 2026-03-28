@@ -56,15 +56,15 @@ export default function Header() {
                 管理者ログイン
               </Link>
             ) : (
-              <div className="flex items-center gap-8">
-                <Link href="/admin/dashboard" className="text-sm font-bold text-gray-600 hover:text-[#10B981]">管理画面</Link>
+              <>
+                <Link href="/admin/dashboard" className="nav-link !px-0 text-gray-600 hover:text-[#10B981] transition">管理画面</Link>
                 <button 
                   onClick={handleLogout}
-                  className="text-sm font-bold text-gray-400 hover:text-red-500 transition"
+                  className="nav-link !px-0 text-gray-400 hover:text-red-500 transition"
                 >
                   ログアウト
                 </button>
-              </div>
+              </>
             )}
           </nav>
         )}
