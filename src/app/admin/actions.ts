@@ -139,3 +139,25 @@ export async function getAdminProfilesWithVerificationAction() {
     email_verified: true // Supabase側でConfirm EmailをOFFにすることを前提
   }))
 }
+
+export async function ensureCompanyLogosBucketAction() {
+  const adminClient = await createAdminClient()
+  
+  // 1. Create bucket if not exists
+  const { data, error } = await adminClient.storage.getBucket('company-logos')
+  
+  if (error || !data) {
+    console.log('Creating company-logos bucket...')
+    const { error: createError } = await adminClient.storage.createBucket('company-logos', {
+      public: true,
+      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'],
+      fileSizeLimit: 1024 * 1024 * 2 // 2MB
+    })
+    if (createError) console.error('Bucket creation error:', createError)
+  } else {
+    // Ensure it is public even if it exists
+    await adminClient.storage.updateBucket('company-logos', { public: true })
+  }
+
+  return { success: true }
+}

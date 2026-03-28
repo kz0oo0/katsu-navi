@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Company, Profile } from '@/lib/types'
-import { approveAdminAction, deleteAdminAction, updateAdminRoleAction, getAdminProfilesWithVerificationAction } from '@/app/admin/actions'
+import { approveAdminAction, deleteAdminAction, updateAdminRoleAction, getAdminProfilesWithVerificationAction, ensureCompanyLogosBucketAction } from '@/app/admin/actions'
 import { getCompanyAnalytics } from '@/app/actions/analytics'
 import { User } from '@supabase/supabase-js'
 
@@ -58,6 +58,9 @@ export default function AdminDashboard() {
         return
       }
       setUser(user)
+
+      // Ensure storage bucket is ready
+      ensureCompanyLogosBucketAction()
 
       const { data: profile } = await supabase
         .from('profiles')
