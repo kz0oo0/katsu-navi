@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand Colors */
+  --brand-green-50: #ECFDF5;
+  --brand-green-100: #D1FAE5;
+  --brand-green-500: #10B981;
+  --brand-green-700: #047857;
+  
+  /* Neutral Colors */
+  --gray-900: #0F172A;
+  --gray-600: #475569;
+  --gray-400: #94A3B8;
+  --gray-border: #E2E8F0;
+  
+  /* Backgrounds */
+  --bg-white: #FFFFFF;
+  --bg-base: #F8FAFC;
+  
+  /* Tokens */
+  --radius-button: 16px;
+  --radius-card: 24px;
+  --radius-input: 16px;
+  --shadow-subtle: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+body {
+  color: var(--gray-900);
+  background-color: var(--bg-base);
+  font-family: var(--font-noto-sans-jp), sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-[#10B981] text-white font-bold py-3 px-8 rounded-[16px] hover:bg-[#059669] transition-all shadow-sm text-sm active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply bg-white border border-[#10B981] text-[#047857] font-bold py-3 px-8 rounded-[16px] hover:bg-emerald-50 transition-all text-sm active:scale-95;
+  }
+
+  .card-modern {
+    @apply bg-white rounded-[24px] shadow-[0_10px_30px_rgba(15,23,42,0.06)] hover:shadow-[0_15px_40px_rgba(15,23,42,0.1)] transition-all duration-300;
+  }
+
+  .nav-link {
+    @apply text-sm font-semibold text-gray-600 hover:text-[#10B981] transition-colors px-2;
+  }
+
+  .section-container {
+    @apply max-w-[1200px] mx-auto px-6 py-20 lg:py-28;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
