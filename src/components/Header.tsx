@@ -8,7 +8,7 @@ import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
-  const isAdminPage = pathname.startsWith('/admin')
+  const isAuthPage = pathname === '/admin/login' || pathname === '/admin/register'
 
   return (
     <header className="bg-white text-gray-800 shadow-sm border-b border-gray-100 sticky top-0 z-50">
@@ -18,37 +18,41 @@ export default function Header() {
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-8 text-[15px] font-bold">
-          <Link href="/companies" className="nav-link">企業を探す</Link>
-          <Link href="/companies/compare" className="nav-link">企業比較</Link>
-          
-          <SignedOut>
-            <Link
-              href="/admin/login"
-              className="btn-secondary !py-2 !px-5"
-            >
-              管理者ログイン
-            </Link>
-          </SignedOut>
-          
-          <SignedIn>
-            <div className="flex items-center gap-4">
-              <Link href="/admin/dashboard" className="text-sm font-bold text-gray-600 hover:text-[#10B981]">管理画面</Link>
-              <UserButton afterSignOutUrl="/" />
-            </div>
-          </SignedIn>
-        </nav>
+        {!isAuthPage && (
+          <nav className="hidden md:flex items-center gap-8 text-[15px] font-bold">
+            <Link href="/companies" className="nav-link">企業を探す</Link>
+            <Link href="/companies/compare" className="nav-link">企業比較</Link>
+            
+            <SignedOut>
+              <Link
+                href="/admin/login"
+                className="btn-secondary !py-2 !px-5"
+              >
+                管理者ログイン
+              </Link>
+            </SignedOut>
+            
+            <SignedIn>
+              <div className="flex items-center gap-4">
+                <Link href="/admin/dashboard" className="text-sm font-bold text-gray-600 hover:text-[#10B981]">管理画面</Link>
+                <UserButton afterSignOutUrl="/" />
+              </div>
+            </SignedIn>
+          </nav>
+        )}
 
         {/* Mobile Hamburger */}
-        <button
-          className="md:hidden p-2 rounded-md hover:bg-gray-50 transition"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="メニュー"
-        >
-          <span className="block w-6 h-0.5 bg-gray-600 mb-1"></span>
-          <span className="block w-6 h-0.5 bg-gray-600 mb-1"></span>
-          <span className="block w-6 h-0.5 bg-gray-600"></span>
-        </button>
+        {!isAuthPage && (
+          <button
+            className="md:hidden p-2 rounded-md hover:bg-gray-50 transition"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="メニュー"
+          >
+            <span className="block w-6 h-0.5 bg-gray-600 mb-1"></span>
+            <span className="block w-6 h-0.5 bg-gray-600 mb-1"></span>
+            <span className="block w-6 h-0.5 bg-gray-600"></span>
+          </button>
+        )}
       </div>
 
       {/* Mobile Menu */}
