@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider localization={jaJP}>
+    <ClerkProvider localization={jaJP as any}>
       <html lang="ja">
         <body className={`${notoSansJP.variable} font-sans antialiased bg-[#F8FAFC] text-[#0F172A]`}>
           <Header />
